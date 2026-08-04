@@ -2,7 +2,7 @@ name: Icarus
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "13 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -45,7 +45,7 @@ jobs:
           git config user.email "victorvyrvoid+github@gmail.com"
           git add state.db
           git diff --cached --quiet && echo "no state changes" && exit 0
-          git commit -m "chore: update posted state [skip ci]"
+          git commit -m "chore: update posted state"
           for i in 1 2 3; do
             git pull --rebase origin main && git push && echo "pushed on attempt $i" && exit 0
             echo "push attempt $i failed, retrying in 5s..."
