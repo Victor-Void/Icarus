@@ -1,0 +1,47 @@
+webhook_url: ''
+max_post_per_feed: 4
+max_post_per_run: 10
+categories:
+- security
+- ai
+sites:
+- name: Hacker News
+  feed_url: https://hnrss.org/frontpage
+- name: Ars Technica
+  feed_url: https://arstechnica.com/feed
+- name: Lobsters
+  feed_url: https://lobste.rs/rss
+- name: The Verge
+  feed_url: https://www.theverge.com/rss/index.xml
+- name: The Hacker News
+  feed_url: https://thehackernews.com/rss.xml
+  categories: [security]
+  max: 4
+- name: BleepingComputer
+  feed_url: https://www.bleepingcomputer.com/feed/
+  categories: [security]
+  max: 3
+- name: Krebs on Security
+  feed_url: https://krebsonsecurity.com/feed/
+  categories: [security]
+  max: 2
+- name: Exploit-DB
+  feed_url: https://www.exploit-db.com/rss.xml
+  categories: [security]
+  max: 2
+- name: CISA Advisories
+  feed_url: https://www.cisa.gov/cybersecurity-advisories/all.xml
+  categories: [security]
+  max: 3
+- name: The Decoder
+  feed_url: https://the-decoder.com/feed/
+  categories: [ai]
+- name: VentureBeat AI
+  feed_url: https://venturebeat.com/category/ai/feed/
+  categories: [ai]
+- name: TechCrunch AI
+  feed_url: https://techcrunch.com/category/artificial-intelligence/feed/
+  categories: [ai]
+- name: MIT Tech Review
+  feed_url: https://www.technologyreview.com/feed
+  categories: [ai]

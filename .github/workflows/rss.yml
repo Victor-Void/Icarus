@@ -1,0 +1,52 @@
+name: Icarus
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Run poll
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python main.py
+
+      - name: Alert on failure
+        if: failure()
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -sS -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\":\"⚠️ Icarus poll run **failed**. See the run log: $RUN_URL\"}"
+
+      - name: Commit state.db back
+        if: always()
+        run: |
+          git config user.name "Victor"
+          git config user.email "victorvyrvoid+github@gmail.com"
+          git add state.db
+          git diff --cached --quiet && echo "no state changes" && exit 0
+          git commit -m "chore: update posted state [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && echo "pushed on attempt $i" && exit 0
+            echo "push attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "::warning::Failed to push state.db after 3 attempts"
