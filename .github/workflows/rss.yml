@@ -4,9 +4,6 @@ on:
   schedule:
     - cron: "*/30 * * * *"
   workflow_dispatch:
-  push:
-    paths:
-      - state.db
 
 permissions:
   contents: write
@@ -48,7 +45,7 @@ jobs:
           git config user.email "victorvyrvoid+github@gmail.com"
           git add state.db
           git diff --cached --quiet && echo "no state changes" && exit 0
-          git commit -m "chore: update posted state"
+          git commit -m "chore: update posted state [skip ci]"
           for i in 1 2 3; do
             git pull --rebase origin main && git push && echo "pushed on attempt $i" && exit 0
             echo "push attempt $i failed, retrying in 5s..."
