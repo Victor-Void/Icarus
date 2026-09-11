@@ -5,9 +5,6 @@ on:
     - cron: "13 * * * *"
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 concurrency: poll
 
 jobs:
@@ -21,7 +18,17 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - name: Restore dedup state
+        uses: actions/cache/restore@v4
+        with:
+          path: state.db
+          key: icarus-state-${{ github.run_id }}
+          restore-keys: icarus-state-
+
       - run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python test_icarus.py
 
       - name: Run poll
         env:
@@ -38,17 +45,9 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{\"content\":\"⚠️ Icarus poll run **failed**. See the run log: $RUN_URL\"}"
 
-      - name: Commit state.db back
+      - name: Save dedup state
         if: always()
-        run: |
-          git config user.name "Victor"
-          git config user.email "victorvyrvoid+github@gmail.com"
-          git add state.db
-          git diff --cached --quiet && echo "no state changes" && exit 0
-          git commit -m "chore: update posted state"
-          for i in 1 2 3; do
-            git pull --rebase origin main && git push && echo "pushed on attempt $i" && exit 0
-            echo "push attempt $i failed, retrying in 5s..."
-            sleep 5
-          done
-          echo "::warning::Failed to push state.db after 3 attempts"
+        uses: actions/cache/save@v4
+        with:
+          path: state.db
+          key: icarus-state-${{ github.run_id }}

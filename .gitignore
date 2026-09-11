@@ -1,7 +1,10 @@
 __pycache__/
 *.pyc
+.ruff_cache/
 .env
 config.local.yaml
+state.db
 state.db-journal
+data/
 state.db-wal
 state.db-shm
