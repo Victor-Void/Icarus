@@ -7,5 +7,5 @@ services:
       - WEBHOOK_URL=${WEBHOOK_URL:?set WEBHOOK_URL in .env or shell}
     volumes:
       - ./config.yaml:/app/config.yaml:ro
-      - ./state.db:/app/state.db
-    command: ["python", "main.py", "--loop", "30"]
+      - ./data:/app/data
+    command: ["python", "main.py", "--loop", "30", "--db", "/app/data/state.db"]

@@ -47,6 +47,12 @@ Or with Docker:
 docker compose up --build
 ```
 
+## Tests
+
+```bash
+python test_icarus.py
+```
+
 ## Managing feeds
 
 ```bash

@@ -94,18 +94,29 @@ def clean_summary(summary: str) -> str:
     return cleaned if len(cleaned) >= 20 else ""
 
 
+def _parse_feed(feed_url: str, timeout: int):
+    """Fetch bytes with a real timeout, then parse (feedparser has no timeout)."""
+    return feedparser.parse(fetch(feed_url, timeout=timeout).content)
+
+
 def fetch_feed(feed_url: str, timeout: int = 15) -> list[Entry]:
     """Fetch a feed and return normalized entries, newest first."""
-    parsed = feedparser.parse(feed_url, agent=USER_AGENT)
-
-    if parsed.get("bozo") and not parsed.entries:
-        exc = parsed.get("bozo_exception")
-        log.warning("feed parse failed (retrying): %s (%s)", feed_url, exc)
-        time.sleep(2)
-        parsed = feedparser.parse(feed_url, agent=USER_AGENT)
-    if parsed.get("bozo") and not parsed.entries:
-        exc = parsed.get("bozo_exception")
-        raise ValueError(f"feed not parseable: {feed_url} ({exc})")
+    parsed = None
+    for attempt in range(2):
+        try:
+            parsed = _parse_feed(feed_url, timeout)
+        except requests.RequestException as exc:  # HTTP error, timeout, bad TLS...
+            parsed = None
+            log.warning("feed request failed%s: %s (%s)",
+                        " (retrying)" if attempt == 0 else "", feed_url, exc)
+        if parsed is not None and parsed.entries:
+            break
+        if attempt == 0:
+            time.sleep(2)
+    if parsed is None:
+        raise ValueError(f"feed not reachable: {feed_url}")
+    if not parsed.entries:
+        raise ValueError(f"feed not parseable or empty: {feed_url} ({parsed.get('bozo_exception')})")
 
     feed_title = parsed.feed.get("title", feed_url)
     entries: list[Entry] = []

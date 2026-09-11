@@ -7,6 +7,8 @@ from typing import Any
 
 import yaml
 
+from filter import MATCHERS
+
 CONFIG_PATH = "config.yaml"
 
 
@@ -32,12 +34,23 @@ def save_config(cfg: dict[str, Any], path: str = CONFIG_PATH) -> None:
         yaml.safe_dump(cfg, fh, sort_keys=False, allow_unicode=True)
 
 
+def _check_categories(names: list[str] | None, where: str) -> None:
+    for name in names or []:
+        if name not in MATCHERS:
+            raise ConfigError(
+                f"unknown category '{name}' in {where} "
+                f"(known: {', '.join(sorted(MATCHERS))})"
+            )
+
+
 def validate_config(cfg: dict[str, Any]) -> None:
     if not cfg.get("sites"):
         raise ConfigError("no sites configured in config.yaml — use 'manage.py add <url>'")
+    _check_categories(cfg.get("categories"), "config")
     for site in cfg["sites"]:
         if not site.get("feed_url"):
             raise ConfigError(f"site '{site.get('name', '?')}' is missing feed_url")
+        _check_categories(site.get("categories"), f"site '{site.get('name', '?')}'")
     mppf = cfg.get("max_post_per_feed", 0)
     if not isinstance(mppf, int) or mppf < 1:
         raise ConfigError("max_post_per_feed must be >= 1")

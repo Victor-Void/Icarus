@@ -31,14 +31,15 @@ def _connect(db_path: str) -> sqlite3.Connection:
     return conn
 
 
-def is_posted(guid: str, feed_url: str, db_path: str | None = None) -> bool:
+def posted_guids(feed_url: str, db_path: str | None = None) -> set[str]:
+    """All guids already recorded for a feed, in one query."""
     if db_path is None:
         db_path = DB_PATH
     with _lock, _connect(db_path) as conn:
-        row = conn.execute(
-            "SELECT 1 FROM posted WHERE guid = ? AND feed_url = ?", (guid, feed_url)
-        ).fetchone()
-        return row is not None
+        return {
+            row[0]
+            for row in conn.execute("SELECT guid FROM posted WHERE feed_url = ?", (feed_url,))
+        }
 
 
 def mark_posted(guid: str, feed_url: str, db_path: str | None = None) -> None:

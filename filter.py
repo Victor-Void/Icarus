@@ -24,6 +24,11 @@ def _word(term: str) -> str:
     return rf"\b{re.escape(term)}\b"
 
 
+def _stem(term: str) -> str:
+    """Prefix match: leading word boundary only, so 'exfiltrat' hits 'exfiltration'."""
+    return rf"\b{re.escape(term)}"
+
+
 def _compile(patterns: list[str]) -> list[re.Pattern]:
     return [re.compile(p, re.IGNORECASE) for p in patterns]
 
@@ -51,7 +56,7 @@ SECURITY_PATTERNS = _compile(
         _word("exploit chain"), _word("side channel"), _word("side-channel"),
         r"\bsupply chain attack",
         _word("red team"), _word("penetration test"),
-        _word("pentest"), _word("command and control"), _word("exfiltrat"),
+        _word("pentest"), _word("command and control"), _stem("exfiltrat"),
         _word("cisa"), _word("nist"), _word("owasp"), _word("payload"),
         _word("ddos"),
         r"\bcve-\d{4}-\d{4,7}\b",
@@ -69,8 +74,8 @@ AI_STRONG = _compile(
         _word("cerebras"), _word("gemma"), _word("minimax"),
         _word("stable diffusion"), _word("whisper"),
         _word("large language model"), _word("llm"), _word("multimodal"),
-        _word("foundation model"), _word("open weights"), _word("fine-tun"),
-        _word("fine tuning"), _word("pre-training"), _word("pretrain"),
+        _word("foundation model"), _word("open weights"), _stem("fine-tun"),
+        _word("fine tuning"), _word("pre-training"), _stem("pretrain"),
         _word("inference"), _word("diffusion model"), _word("text-to-video"),
         _word("text-to-image"), _word("image generation"), _word("ai agent"),
         _word("ai agents"), _word("reasoning model"), _word("agi"),
@@ -83,7 +88,6 @@ AI_STRONG = _compile(
         _word("open-source model"), _word("open source model"),
         _word("model weights"), _word("inference cost"), _word("training run"),
         _word("reasoning"), _word("agentic"),
-        r"\bpretrain",
     ]
 )
 
@@ -91,7 +95,7 @@ AI_CONTEXT = _compile(
     [
         _word("pricing"), _word("price"), _word("prices"), _word("subscription"),
         _word("api cost"), _word("token cost"), _word("per token"),
-        _word("capabilit"), _word("performance"),
+        _stem("capabilit"), _word("performance"),
     ]
 )
 

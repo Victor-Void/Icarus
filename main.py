@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import random
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -40,52 +41,50 @@ def _parallel_fetch(sites: list[dict], max_workers: int = 5) -> dict[str, list[f
     return results
 
 
-def process_site(
-    cfg: dict, site: dict, webhook: str, remaining: int, entries: list[fetcher.Entry]
-) -> tuple[int, int]:
-    new_entries = [e for e in entries if not dedup.is_posted(e.guid, e.feed_url)]
+def _candidates(cfg: dict, site: dict, entries: list[fetcher.Entry]) -> list[fetcher.Entry]:
+    """New, filter-matching entries for a feed (one dedup query + one mark batch)."""
+    seen = dedup.posted_guids(site["feed_url"])
+    new_entries = [e for e in entries if e.guid not in seen]
     categories = site.get("categories") or cfg.get("categories") or []
-
     if categories:
         keep = [e for e in new_entries if filter_mod.matches_categories(e, categories)]
     else:
         keep = new_entries
 
-    cap = min(int(site.get("max") or cfg.get("max_post_per_feed", 5)), remaining)
+    cap = int(site.get("max") or cfg.get("max_post_per_feed", 5))
     to_post = keep[:cap]
     to_post_guids = {e.guid for e in to_post}
-
+    # Everything else (rejected by the filter, or past the per-feed cap) is seen forever.
     dedup.mark_posted_many([(e.guid, e.feed_url) for e in new_entries if e.guid not in to_post_guids])
+    return to_post
 
-    posted = 0
-    for entry in to_post:
-        image_url = None
-        if cfg.get("resolve_images", True):
-            try:
-                image_url = resolve_image(entry)
-            except Exception as exc:  # noqa: BLE001
-                log.warning("image resolution failed for %s: %s", entry.link, exc)
 
-        description = entry.summary
-        if not description and cfg.get("resolve_descriptions", True):
-            try:
-                description = resolve_description(entry)
-            except Exception as exc:  # noqa: BLE001
-                log.warning("description resolution failed for %s: %s", entry.link, exc)
-
-        payload = discord_mod.build_payload(entry, image_url, description)
+def _post(cfg: dict, site: dict, webhook: str, entry: fetcher.Entry) -> bool:
+    image_url = None
+    if cfg.get("resolve_images", True):
         try:
-            discord_mod.post_webhook(webhook, payload)
-        except RuntimeError as exc:
-            log.error("webhook post failed for %s: %s", entry.link, exc)
-            continue
+            image_url = resolve_image(entry)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("image resolution failed for %s: %s", entry.link, exc)
 
-        dedup.mark_posted(entry.guid, entry.feed_url)
-        posted += 1
-        log.info("posted [%s] %s", site.get("name", entry.site_name), entry.title)
-        time.sleep(discord_mod.POST_DELAY)
+    description = entry.summary
+    if not description and cfg.get("resolve_descriptions", True):
+        try:
+            description = resolve_description(entry)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("description resolution failed for %s: %s", entry.link, exc)
 
-    return posted, len(entries) - len(to_post)
+    payload = discord_mod.build_payload(entry, image_url, description)
+    try:
+        discord_mod.post_webhook(webhook, payload)
+    except RuntimeError as exc:
+        log.error("webhook post failed for %s: %s", entry.link, exc)
+        return False
+
+    dedup.mark_posted(entry.guid, entry.feed_url)
+    log.info("posted [%s] %s", site.get("name", entry.site_name), entry.title)
+    time.sleep(discord_mod.POST_DELAY)
+    return True
 
 
 def run_once(cfg: dict) -> None:
@@ -95,23 +94,35 @@ def run_once(cfg: dict) -> None:
     sites = cfg.get("sites", [])
 
     feed_results = _parallel_fetch(sites)
-    total_posted = total_skipped = 0
 
+    queues: list[list] = []
     for site in sites:
-        if budget <= 0:
-            break
+        name = site.get("name", site.get("feed_url"))
         entries = feed_results.get(site["feed_url"])
         if entries is None:
-            log.info("%s: fetch failed", site.get("name", site.get("feed_url")))
+            log.info("%s: fetch failed", name)
             continue
-        posted, skipped = process_site(cfg, site, webhook, budget, entries)
-        budget -= posted
-        total_posted += posted
-        total_skipped += skipped
-        info = f"{posted} posted, {skipped} skipped" if posted or skipped else "no new entries"
-        log.info("%s: %s", site.get("name", site.get("feed_url")), info)
+        queue = _candidates(cfg, site, entries)
+        log.info("%s: %d to post", name, len(queue))
+        if queue:
+            queues.append([site, queue])
 
-    log.info("run complete: %d posted, %d skipped", total_posted, total_skipped)
+    # Shuffle so the global budget can't always be eaten by the first feeds.
+    random.shuffle(queues)
+
+    total_posted = 0
+    while budget > 0 and any(queue for _, queue in queues):
+        for item in queues:
+            if budget <= 0:
+                break
+            site, queue = item
+            if not queue:
+                continue
+            if _post(cfg, site, webhook, queue.pop(0)):
+                budget -= 1
+                total_posted += 1
+
+    log.info("run complete: %d posted", total_posted)
     dedup.prune()
 
 

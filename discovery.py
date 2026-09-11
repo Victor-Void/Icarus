@@ -15,7 +15,7 @@ from urllib.parse import urljoin, urlparse
 import feedparser
 import requests
 
-from fetcher import USER_AGENT, fetch
+from fetcher import fetch
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +37,10 @@ def _is_comment_feed(url: str) -> bool:
 
 
 def validate_feed(url: str, timeout: int = 15) -> bool:
-    parsed = feedparser.parse(url, agent=USER_AGENT)
+    try:
+        parsed = feedparser.parse(fetch(url, timeout=timeout).content)
+    except requests.RequestException:
+        return False
     return not parsed.get("bozo") and bool(parsed.entries)
 
 
